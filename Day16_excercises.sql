@@ -86,7 +86,7 @@ FROM Products
 WHERE change_date<='2019-08-16'),
 b AS
 (SELECT DISTINCT product_id,
-CASE WHEN change_date>'2019-08-16' THEN '10'
+CASE WHEN change_date>'2019-08-16' THEN 10
 END AS price
 FROM products),
 c AS
