@@ -38,22 +38,9 @@ alter column productcode type varchar(8) USING productcode::varchar(8)
 ------------------------------------------------------------------------------------
 --2.
 SELECT * FROM sales_dataset_rfm_prj
-WHERE ORDERNUMBER IS NULL
-------
-SELECT * FROM sales_dataset_rfm_prj
-WHERE QUANTITYORDERED IS NULL
-------
-SELECT * FROM sales_dataset_rfm_prj
-WHERE PRICEEACH IS NULL
-------
-SELECT * FROM sales_dataset_rfm_prj
-WHERE ORDERLINENUMBER IS NULL
-------
-SELECT * FROM sales_dataset_rfm_prj
-WHERE SALES IS NULL
-------
-SELECT * FROM sales_dataset_rfm_prj
-WHERE ORDERDATE IS NULL
+WHERE ORDERNUMBER IS NULL OR QUANTITYORDERED IS NULL
+  OR PRICEEACH IS NULL OR ORDERLINENUMBER IS NULL
+  OR SALES IS NULL OR ORDERDATE IS NULL
 
 ------------------------------------------------------------------------------------
 --3.
