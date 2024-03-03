@@ -97,8 +97,7 @@ with a as
 from sales_dataset_rfm_prj) as avg,
 (select stddev(QUANTITYORDERED)
 from sales_dataset_rfm_prj) as stddev
-from sales_dataset_rfm_prj),
-twt_outlier as
+from sales_dataset_rfm_prj)
 select QUANTITYORDERED,(QUANTITYORDERED- avg)/stddev as z_score
 from a
 where abs((QUANTITYORDERED- avg)/stddev)>3
