@@ -110,3 +110,96 @@ group by dates, product_categories)
 where dates between '2023-12-04' and '2024-03-04'
 order by dates
 
+------------------------------------P2-----------------------------------------------------
+
+create view vw_ecommerce_analyst as
+(with a as
+(select distinct FORMAT_DATE('%Y-%m', o.created_at) as Month,
+extract(year from o.created_at) as Year,
+p.category as product_category,
+round(sum(oi.sale_price) over (partition by p.category order by FORMAT_DATE('%Y-%m', o.created_at)),2) as TPV,
+count(*) over (partition by p.category order by FORMAT_DATE('%Y-%m', o.created_at)) as TPO,
+round(sum(p.cost) over (partition by p.category order by FORMAT_DATE('%Y-%m', o.created_at)),2) as total_cost
+from bigquery-public-data.thelook_ecommerce.order_items as oi
+join bigquery-public-data.thelook_ecommerce.orders as o
+on oi.order_id=o.order_id
+join bigquery-public-data.thelook_ecommerce.products as p
+on oi.product_id=p.id
+order by Month)
+
+select Month, Year, product_category, TPV, TPO,
+round(((TPV-lag(TPV) over (partition by product_category order by Month))/
+lag(TPV) over (partition by product_category order by Month))*100,2)||'%' as revenue_growth,
+round(((TPO-lag(TPO) over (partition by product_category order by Month))/
+lag(TPO) over (partition by product_category order by Month))*100,2)||'%' as order_growth,
+total_cost,
+round(TPV-total_cost,2) as total_profit,
+round((TPV-total_cost)/total_cost,2) as profit_to_cost_ratio
+from a)
+
+---------------------------------------cohort analysis----------------------------------------------
+
+with table_index as
+(select user_id, sale_price,
+FORMAT_DATE('%Y-%m', date(first_date)) as cohort_date,
+created_at,
+cast(extract(year from created_at)-extract(year from first_date) as decimal)*12
++cast(extract(month from created_at)-extract(month from first_date) as decimal)+1 as index,
+from
+(select user_id, sale_price, 
+min(created_at) over (partition by user_id) as first_date,
+created_at
+from bigquery-public-data.thelook_ecommerce.order_items
+))
+  
+, cohort_data as
+(select cohort_date, index, 
+count(distinct user_id) as cnt,
+round(sum(sale_price),2) as revenue
+from table_index
+where index<=4
+group by cohort_date, index),
+
+customer_cohort as
+(select 
+cohort_date,
+sum(case when index=1 then cnt else 0 end ) as m1,
+sum(case when index=2 then cnt else 0 end ) as m2,
+sum(case when index=3 then cnt else 0 end ) as m3,
+sum(case when index=4 then cnt else 0 end ) as m4
+from cohort_data
+group by cohort_date
+order by cohort_date),
+
+retention_cohort as
+(select cohort_date,
+round(100.00* m1/m1,2)||'%' as m1,
+round(100.00* m2/m1,2)||'%' as m2,
+round(100.00* m3/m1,2)||'%' as m3,
+round(100.00* m4/m1,2)||'%' as m4
+from customer_cohort
+order by cohort_date)
+
+--churn_cohort:
+select cohort_date,
+(100-round(100.00* m1/m1,2))||'%' as m1,
+(100-round(100.00* m2/m1,2))||'%' as m2,
+(100-round(100.00* m3/m1,2))||'%' as m3,
+(100-round(100.00* m4/m1,2))||'%' as m4
+from customer_cohort
+order by cohort_date
+
+Link sheet cohort: https://docs.google.com/spreadsheets/d/1ops75XMiUj-gwWv6A1bkCexqz_YQGPmoHN8PVTX8kNc/edit?usp=sharing
+
+/*Insight:
+- Công ty có tăng số lượng khách hàng theo thời gian từ 2019-2024, nhưng hầu hết là khách hàng chỉ mua 1 lần.
+Số lượng khách hàng mới tăng mạnh, chứng tỏ TheLook rất chú tâm vào quảng cáo trang web của họ ở các nền tảng
+và điều này có kết quả rõ rệt.
+- Công ty gần như không có return customers trong các năm đầu (2019-2020) nhưng con số này đã tăng trong những năm
+gần đây. Tuy nhiên thì so với lượng khách hàng mới thì số lượng return customers chỉ bằng chưa đến một nửa.
+- TheLook có thể triển khai các marketing campaign để vừa thu hút khách hàng mới, vừa giữ chân khách hàng cũ:
++ Đầu tư vào social media content, tương tác với khách hàng tiềm năng, influencer marketing để tăng độ nhận diện
+thương hiệu,...
++ Tương tác với khách hàng cũ: tạo email list, follow up sau các lần mua hàng, gửi nhắc nhở về đồ trong giỏ hàng,
+discount vào dịp đặc biệt như sinh nhật khách...*/
+
